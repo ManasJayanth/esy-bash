@@ -7,7 +7,7 @@ let pathDelimChr = pathDelimStr.[0];
 let log = msg => {
   let debugMode =
     (
-      try (Sys.getenv("ESY_BASH_DEBUG")) {
+      try(Sys.getenv("ESY_BASH_DEBUG")) {
       | Not_found => ""
       }
     )
@@ -24,46 +24,54 @@ let normalizeEndlines = str =>
   String.concat("\n", Str.split(Str.regexp("\r\n"), str));
 
 let splitInTwo = (~char, str) => {
-  switch(String.split_on_char(char, str)) {
+  switch (String.split_on_char(char, str)) {
   | [] => Error("String.split_on_char returned empty list")
   | [_] => Error("String.split_on_char returned a single item back")
   | [a, b, ..._] => Ok((a, b))
-  }
+  };
 };
 
 let getPathSeparator = () => {
-  Sys.unix ? ":" : ";"
+  Sys.unix ? ":" : ";";
 };
 
 module Array = {
   include Array;
   let filter_map = (f, arr) => {
     arr
-    |> Array.fold_left((acc, a) => switch(f(a)) {
-      | Some(v) => [v, ...acc]
-      | None => acc
-      }, [])
-    |> Array.of_list
+    |> Array.fold_left(
+         (acc, a) =>
+           switch (f(a)) {
+           | Some(v) => [v, ...acc]
+           | None => acc
+           },
+         [],
+       )
+    |> Array.of_list;
   };
 };
-  
+
 let remapPathsInEnvironment = envVars => {
-  let (let*) = Option.bind;
+  let ( let* ) = Option.bind;
   let f = envVar => {
     let* (k, v) = Result.to_option(splitInTwo(~char='=', envVar));
-    switch(String.lowercase_ascii(k)) {
+    switch (String.lowercase_ascii(k)) {
     | "path" =>
-      Some(("PATH",
-            String.concat(getPathSeparator(),
-                          [normalizePath(v), "/usr/bin", "/usr/local/bin"])))
+      Some((
+        "PATH",
+        String.concat(
+          getPathSeparator(),
+          [normalizePath(v), "/usr/bin", "/usr/local/bin"],
+        ),
+      ))
     | "home" => Some(("HOME", "/usr/esy"))
     | "" => None
     | _kLowerCase => Some((k, v))
-    }
+    };
   };
   envVars
-  |> Array.filter_map(f) // Some env vars could be invalid and need to be filtered out
-  |> Array.map(((k, v)) => Printf.sprintf("%s=%s", k, v))
+  |> Array.filter_map(f)  // Some env vars could be invalid and need to be filtered out
+  |> Array.map(((k, v)) => Printf.sprintf("%s=%s", k, v));
 };
 
 let collectKeyValuePairs = jsonKeyValuePairs =>
@@ -89,7 +97,16 @@ let extractEnvironmentVariables = environmentFile => {
   traverse(json);
 };
 
-let nonce = ref(0);
+let withTempFile = (~contents, ~f) => {
+  let tempFilePath = Filename.temp_file("__esy-bash__", ".sh");
+  let fileChannel = open_out_bin(tempFilePath);
+  Printf.fprintf(fileChannel, "%s", contents);
+  close_out(fileChannel);
+  let result = f(tempFilePath);
+  Sys.remove(tempFilePath);
+  result;
+};
+
 let bashExec = (~environmentFile=?, command) => {
   let executablePath = Sys.executable_name;
   let parent = Filename.dirname;
@@ -97,24 +114,7 @@ let bashExec = (~environmentFile=?, command) => {
     parent(parent(parent(parent(parent(executablePath)))))
     ++ "\\.cygwin\\bin\\bash.exe";
   let shellPath = Sys.unix ? "/bin/bash" : cygwinBash;
-  nonce := nonce^ + 1;
-  log(
-    Printf.sprintf(
-      "esy-bash: executing bash command: %s |  nonce %s\n",
-      command,
-      string_of_int(nonce^),
-    ),
-  );
-  let tmpFileName =
-    Printf.sprintf(
-      "__esy-bash__%s__%s__.sh",
-      string_of_int(Hashtbl.hash(command)),
-      string_of_int(nonce^),
-    );
-  let tempFilePath =
-    Sys.getenv(Sys.unix ? "TMPDIR" : "TMP") ++ pathDelimStr ++ tmpFileName;
-  let cygwinSymlinkVar = "CYGWIN=winsymlinks:nativestrict";
-
+  log(Printf.sprintf("esy-bash: executing bash command: %s\n", command));
   let bashCommandWithDirectoryPreamble =
     Printf.sprintf(
       "mount -c /cygdrive -o binary,noacl,posix=0,user > /dev/null; \ncd \"%s\";\n%s;",
@@ -124,38 +124,40 @@ let bashExec = (~environmentFile=?, command) => {
   let normalizedShellScript =
     normalizeEndlines(bashCommandWithDirectoryPreamble);
 
-  let fileChannel = open_out_bin(tempFilePath);
-  Printf.fprintf(fileChannel, "%s", normalizedShellScript);
-  close_out(fileChannel);
-
+  let cygwinSymlinkVar = "CYGWIN=winsymlinks:nativestrict";
   let existingVars = Unix.environment();
   let vars =
     remapPathsInEnvironment(
       Array.append([|cygwinSymlinkVar|], existingVars),
     );
-  let run_shell =
-    switch (environmentFile) {
-    | Some(x) =>
-      let varsFromFile =
-        remapPathsInEnvironment(
-          Array.of_list(extractEnvironmentVariables(x)),
-        );
-      Unix.create_process_env(
-        shellPath,
-        [|Sys.unix ? "-c" : "-lc", tempFilePath|],
-        Array.append(existingVars, varsFromFile),
-      );
-    | None =>
-      Unix.create_process_env(
-        shellPath,
-        [|Sys.unix ? "-c" : "-lc", tempFilePath|],
-        vars,
-      )
-    };
-  let pid = run_shell(Unix.stdin, Unix.stdout, Unix.stderr);
-  switch (Unix.waitpid([], pid)) {
-  | (_, WEXITED(c)) => c
-  | (_, WSIGNALED(c)) => c
-  | (_, WSTOPPED(c)) => c
-  };
+  withTempFile(
+    ~contents=normalizedShellScript,
+    ~f=tempFilePath => {
+      let run_shell =
+        switch (environmentFile) {
+        | Some(x) =>
+          let varsFromFile =
+            remapPathsInEnvironment(
+              Array.of_list(extractEnvironmentVariables(x)),
+            );
+          Unix.create_process_env(
+            shellPath,
+            [|Sys.unix ? "-c" : "-lc", tempFilePath|],
+            Array.append(existingVars, varsFromFile),
+          );
+        | None =>
+          Unix.create_process_env(
+            shellPath,
+            [|Sys.unix ? "-c" : "-lc", tempFilePath|],
+            vars,
+          )
+        };
+      let pid = run_shell(Unix.stdin, Unix.stdout, Unix.stderr);
+      switch (Unix.waitpid([], pid)) {
+      | (_, WEXITED(c)) => c
+      | (_, WSIGNALED(c)) => c
+      | (_, WSTOPPED(c)) => c
+      };
+    },
+  );
 };
