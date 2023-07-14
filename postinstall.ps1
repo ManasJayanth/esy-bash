@@ -21,7 +21,7 @@ function downloadWindowsDefaultManifest($configJson, $downloadFolder) {
     return $uncompressedPath
 }
 
-$EsyBash = "./re/_build/default/bin/EsyBash.exe"
+$EsyBash = Resolve-Path "./re/_build/default/bin/EsyBash.exe"
 
 function runEsy {
     param([String] $Path, $Cmd)
