@@ -1,0 +1,29 @@
+{
+  "packages": {
+    "gcc": [
+      "mingw64-x86_64-gcc-core",
+      "mingw64-x86_64-gcc-g++",
+      "mingw64-x86_64-headers",
+      "mingw64-x86_64-runtime",
+      "mingw64-x86_64-winpthreads"
+    ],
+    "bashUtils": [
+      "curl",
+      "diff",
+      "diffutils",
+      "git",
+      "m4",
+      "make",
+      "patch",
+      "unzip",
+      "python",
+      "bash"
+    ],
+    "cygwinOCaml": ["gcc-g++", "flexdll"]
+  },
+  "windowsDefaultManifest": {
+    "name": "windows-default-manifest",
+    "version": "6.4.0-beta.2",
+    "ghAccount": "ManasJayanth"
+  }
+}
