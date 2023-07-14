@@ -16,16 +16,33 @@ function downloadWindowsDefaultManifest($configJson, $downloadFolder) {
 	echo "Checksum failure. Exiting"
 	exit -1
     }
-    return $archivePath
+    tar -C $workspaceArea -xvf $archivePath
+    $uncompressedPath = Join-Path -Path $downloadFolder -ChildPath "$name-$version";
+    return $uncompressedPath
 }
 
-function installWindowsDefaultManifest($archivePath, $workspaceArea) {
-    tar -C $workspaceArea -xvf $archivePath
+$EsyBash = "./re/_build/default/bin/EsyBash.exe"
+
+function runEsy {
+    param([String] $Path, $Cmd)
+    $Cwd = $(pwd)
+    cd $Path
+    & $EsyBash $Cmd
+    if (! $?) {
+	exit(-1);
+    }
+    cd $Cwd
+}
+
+function buildAndInstall ($src) {
+    runEsy -Path $src "./configure --host x86_64-w64-mingw32 --prefix=/usr/x86_64-w64-mingw32/sys-root/mingw"
+    runEsy -Path $src "make"
+    runEsy -Path $src "make install"
 }
 
 $workspaceAreaName = "_temp"
 mkdir -p $workspaceAreaName
 $workspaceArea = Resolve-Path $workspaceAreaName
 $configJson = Get-Content ./config.json -Raw | ConvertFrom-Json 
-$archivePath = downloadWindowsDefaultManifest $configJson $workspaceArea
-installWindowsDefaultManifest $archivePath $workspaceArea
+$windowsDefaultManifestSrc = downloadWindowsDefaultManifest $configJson $workspaceArea
+buildAndInstall $windowsDefaultManifestSrc
