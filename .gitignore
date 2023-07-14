@@ -69,3 +69,6 @@ setup-x86_64.exe
 
 # esy
 _esy
+
+# CI and devops stuff
+_temp
