@@ -66,7 +66,7 @@ function prepareWindowsDefaultManifestSrc {
 	echo "windows-default-manifest tarball not found." # TODO prompt for download
 	exit -1
     }
-    $uncompressedPath = Resolve-Path -Path ([IO.Path]::Combine($localPackageDirectory, "$name-$version"));
+    $uncompressedPath = [IO.Path]::Combine($localPackageDirectory, "$name-$version");
     removePath -Path $uncompressedPath
     tar -C $localPackageDirectory -xvf $archivePath
     return $uncompressedPath
@@ -109,8 +109,7 @@ function setupCygwin {
     $localPackageDirectory = Join-Path -Path $installationDirectory $configJson.cygwin.localPackageSubDirectory
 
     echo "Installing packages"
-    $packagesToInstall = $configJson.packages.gcc +
-    $configJson.bashUtils
+    $packagesToInstall = $configJson.packages.gcc + $configJson.packages.bashUtils
     $packagesToInstall = $packagesToInstall -Join ","
     runSetup "-qWnNdO -R $installationDirectory -L -l $localPackageDirectory -P $packagesToInstall"
 
@@ -118,7 +117,7 @@ function setupCygwin {
     $DefaultsFolder = Join-Path -Path $EsyBashRoot -ChildPath "defaults"
     cp -Recurse "$DefaultsFolder/*" $dotCygwinFolder -ErrorAction SilentlyContinue 
     $nsSwitchConf = [IO.Path]::Combine($dotCygwinFolder, "etc", "nsswitch.conf")
-    Add-Content -Path $nsSwitchConf -Value "\ndb_home: /usr/esy\n"
+    Add-Content -Path $nsSwitchConf -Value "db_home: /usr/esy"
     echo "Verifying esy profile set up..."
     runEsyBash -Cmd "bash -lc cd ~ && pwd"
     if (Test-Path ([IO.Path]::Combine($dotCygwinFolder, "usr", "esy", ".bashrc"))) {
