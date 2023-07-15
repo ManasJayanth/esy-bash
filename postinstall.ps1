@@ -43,29 +43,32 @@ function createEmptyFolder {
 # windows-default-manifest setup #
 ##################################
 
-function downloadWindowsDefaultManifest($downloadFolder) {
-    $ghAccount = $configJson.windowsDefaultManifest.ghAccount;
+function prepareWindowsDefaultManifestSrc {
+    param([String] $dotCygwinFolder)
     $name = $configJson.windowsDefaultManifest.name;
     $version = $configJson.windowsDefaultManifest.version;
     $publishedHash256 = $configJson.windowsDefaultManifest.publishedHash256;
+    $localPackageDirectory = Resolve-Path -Path ([IO.Path]::Combine($dotCygwinFolder, $configJson.cygwin.localPackageSubDirectory))
     $tag = "v$version"
     $archiveType = "tar.gz"
-    $windowsDefaultManifestArchiveUri = "https://github.com/$ghAccount/$name/archive/refs/tags/$tag.$archiveType"
     $archiveName = "$name-$version.$archiveType";
-    $archivePath = Join-Path -Path $downloadFolder -ChildPath $archiveName
+    $archivePath = Resolve-Path -Path ([IO.Path]::Combine($localPackageDirectory, $archiveName))
     if (! (pathExists -Path archivePath)) {
+	$FileHash = Get-FileHash $archivePath -Algorithm SHA256
 	if (! ($FileHash.Hash -eq $publishedHash256)) {
-	    Invoke-WebRequest -Uri $windowsDefaultManifestArchiveUri -OutFile $archivePath
+	    echo "windows-default-manifest tarball found, but possibly corrupt." # TODO prompt for download
+	    # $ghAccount = $configJson.windowsDefaultManifest.ghAccount;
+	    # $windowsDefaultManifestArchiveUri = "https://github.com/$ghAccount/$name/archive/refs/tags/$tag.$archiveType"
+	    # Invoke-WebRequest -Uri $windowsDefaultManifestArchiveUri -OutFile $archivePath
+	    exit -1;
 	}
-    }
-    $FileHash = Get-FileHash $archivePath -Algorithm SHA256
-    if (! ($FileHash.Hash -eq $publishedHash256)) {
-	echo "Checksum failure. Exiting"
+    } else {
+	echo "windows-default-manifest tarball not found." # TODO prompt for download
 	exit -1
     }
-    $uncompressedPath = Join-Path -Path $downloadFolder -ChildPath "$name-$version";
+    $uncompressedPath = Resolve-Path -Path ([IO.Path]::Combine($localPackageDirectory, "$name-$version"));
     removePath -Path $uncompressedPath
-    tar -C $workspaceArea -xvf $archivePath
+    tar -C $localPackageDirectory -xvf $archivePath
     return $uncompressedPath
 }
 
@@ -127,19 +130,15 @@ function setupCygwin {
 }
 
 function setupWindowsDefaultManifest {
-    param([String] $workspaceArea)
-    $windowsDefaultManifestSrc = downloadWindowsDefaultManifest $workspaceArea
+    param([String] $dotCygwinFolder)
+    $windowsDefaultManifestSrc = prepareWindowsDefaultManifestSrc -dotCygwinFolder $dotCygwinFolder
     buildAndInstall $windowsDefaultManifestSrc
 }
 
 function installEsyBash {
     param([String] $EsyBashExe, [String] $EsyBashRoot, [String] $dotCygwinFolder)
-
     setupCygwin -EsyBashRoot $EsyBashRoot -dotCygwinFolder $dotCygwinFolder
-
-    $workspaceAreaName = "_temp"
-    $workspaceArea = createEmptyFolder -Path $workspaceAreaName
-    setupWindowsDefaultManifest -workspaceArea $workspaceArea
+    setupWindowsDefaultManifest -dotCygwinFolder $dotCygwinFolder
 }
 
 function main {
