@@ -1,4 +1,14 @@
 {
+  "cygwin": {
+    "setupWebsite": "https://cygwin.com",
+    "setup": "setup-x86_64.exe",
+    "mirror": "http://cygwin.mirror.constant.com",
+    "installationSubDirectory": "./.cygwin",
+    "localPackageSubDirectory": "./var/cache/setup"
+  },
+  "paths": {
+    "esyBashExe": "./re/_build/default/bin/EsyBash.exe"
+  },
   "packages": {
     "gcc": [
       "mingw64-x86_64-gcc-core",
@@ -24,6 +34,7 @@
   "windowsDefaultManifest": {
     "name": "windows-default-manifest",
     "version": "6.4.0-beta.2",
+    "publishedHash256": "2385d027d83db3bbd6fadca92cb93d5b95fcbb5d42a7c481e164f62998a0338f",
     "ghAccount": "ManasJayanth"
   }
 }

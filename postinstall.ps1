@@ -1,48 +1,166 @@
-function downloadWindowsDefaultManifest($configJson, $downloadFolder) {
+
+##############
+# Parameters #
+##############
+
+param([String] $EsyBashExe, [String] $EsyBashRoot)
+if (! $EsyBashExe) {
+    $EsyBashExe = Resolve-Path "./re/_build/default/bin/EsyBash.exe"
+}
+if (! $EsyBashRoot) {
+    $EsyBashRoot = $PWD;
+}
+
+###############
+# Load Config #
+###############
+
+$configJsonPath = Join-Path -Path $EsyBashRoot -ChildPath config.json
+$configJson = Get-Content $configJsonPath -Raw | ConvertFrom-Json 
+
+#########
+# Utils #
+#########
+
+function pathExists {
+    param([String] $Path)
+    return (Test-Path $Path)
+}
+
+function removePath {
+    param([String] $Path)
+    rm -Recurse -Force -ErrorAction SilentlyContinue $Path
+}
+
+function createEmptyFolder {
+    param([String] $Path)
+    removePath -Path $Path
+    mkdir $Path | Out-Null
+    return Resolve-Path $Path;
+}
+
+##################################
+# windows-default-manifest setup #
+##################################
+
+function downloadWindowsDefaultManifest($downloadFolder) {
     $ghAccount = $configJson.windowsDefaultManifest.ghAccount;
     $name = $configJson.windowsDefaultManifest.name;
     $version = $configJson.windowsDefaultManifest.version;
+    $publishedHash256 = $configJson.windowsDefaultManifest.publishedHash256;
     $tag = "v$version"
     $archiveType = "tar.gz"
     $windowsDefaultManifestArchiveUri = "https://github.com/$ghAccount/$name/archive/refs/tags/$tag.$archiveType"
     $archiveName = "$name-$version.$archiveType";
     $archivePath = Join-Path -Path $downloadFolder -ChildPath $archiveName
-    if (! (Test-Path $archivePath -PathType Leaf)) {
-	Invoke-WebRequest -Uri $windowsDefaultManifestArchiveUri -OutFile $archivePath
+    if (! (pathExists -Path archivePath)) {
+	if (! ($FileHash.Hash -eq $publishedHash256)) {
+	    Invoke-WebRequest -Uri $windowsDefaultManifestArchiveUri -OutFile $archivePath
+	}
     }
-    $PublishedHash = "2385d027d83db3bbd6fadca92cb93d5b95fcbb5d42a7c481e164f62998a0338f"
     $FileHash = Get-FileHash $archivePath -Algorithm SHA256
-    if (! ($FileHash.Hash -eq $PublishedHash)) {
+    if (! ($FileHash.Hash -eq $publishedHash256)) {
 	echo "Checksum failure. Exiting"
 	exit -1
     }
-    tar -C $workspaceArea -xvf $archivePath
     $uncompressedPath = Join-Path -Path $downloadFolder -ChildPath "$name-$version";
+    removePath -Path $uncompressedPath
+    tar -C $workspaceArea -xvf $archivePath
     return $uncompressedPath
 }
 
-$EsyBash = Resolve-Path "./re/_build/default/bin/EsyBash.exe"
-
-function runEsy {
-    param([String] $Path, $Cmd)
-    $Cwd = $(pwd)
-    cd $Path
-    & $EsyBash $Cmd
+function runCommand {
+    param([String] $Cwd, [String] $Prg, $ArgsString)
+    $curCwd = $(pwd)
+    if (!$Cwd) {
+	$Cwd = $curCwd;
+    }
+    cd $Cwd
+    Start-Process -NoNewWindow -Wait $Prg $ArgsString
+    cd $curCwd
     if (! $?) {
 	exit(-1);
     }
-    cd $Cwd
 }
 
-function buildAndInstall ($src) {
-    runEsy -Path $src "./configure --host x86_64-w64-mingw32 --prefix=/usr/x86_64-w64-mingw32/sys-root/mingw"
-    runEsy -Path $src "make"
-    runEsy -Path $src "make install"
+function runEsyBash {
+    param([String] $Cwd, $Cmd)
+    runCommand -Cwd $Cwd -Prg $EsyBashExe -ArgsString $Cmd 
 }
 
-$workspaceAreaName = "_temp"
-mkdir -p $workspaceAreaName
-$workspaceArea = Resolve-Path $workspaceAreaName
-$configJson = Get-Content ./config.json -Raw | ConvertFrom-Json 
-$windowsDefaultManifestSrc = downloadWindowsDefaultManifest $configJson $workspaceArea
-buildAndInstall $windowsDefaultManifestSrc
+function runSetup ($ArgsString) {
+    $setup = $configJson.cygwin.setup
+    runCommand -Prg "./$setup" -ArgsString $ArgsString
+}
+
+function buildAndInstall ($windowsDefaultManifestSrcPath) {
+    runEsyBash -Cwd $windowsDefaultManifestSrcPath "./configure --host x86_64-w64-mingw32 --prefix=/usr/x86_64-w64-mingw32/sys-root/mingw"
+    runEsyBash -Cwd $windowsDefaultManifestSrcPath "make"
+    runEsyBash -Cwd $windowsDefaultManifestSrcPath "make install"
+}
+
+function setupCygwin {
+    param([String] $EsyBashRoot, [String] $dotCygwinFolder)
+
+    $installationDirectory = Join-Path -Path $EsyBashRoot -ChildPath $configJson.cygwin.installationSubDirectory
+    $localPackageDirectory = Join-Path -Path $installationDirectory $configJson.cygwin.localPackageSubDirectory
+
+    echo "Installing packages"
+    $packagesToInstall = $configJson.packages.gcc +
+    $configJson.bashUtils
+    $packagesToInstall = $packagesToInstall -Join ","
+    runSetup "-qWnNdO -R $installationDirectory -L -l $localPackageDirectory -P $packagesToInstall"
+
+    echo "Copying over defaults..."
+    $DefaultsFolder = Join-Path -Path $EsyBashRoot -ChildPath "defaults"
+    cp -Recurse "$DefaultsFolder/*" $dotCygwinFolder -ErrorAction SilentlyContinue 
+    $nsSwitchConf = [IO.Path]::Combine($dotCygwinFolder, "etc", "nsswitch.conf")
+    Add-Content -Path $nsSwitchConf -Value "\ndb_home: /usr/esy\n"
+    echo "Verifying esy profile set up..."
+    runEsyBash -Cmd "bash -lc cd ~ && pwd"
+    if (Test-Path ([IO.Path]::Combine($dotCygwinFolder, "usr", "esy", ".bashrc"))) {
+	echo "Esy user profile setup!"
+    } else {
+	echo "Esy user profile not setup. Exiting"
+	exit -1
+    }
+}
+
+function setupWindowsDefaultManifest {
+    param([String] $workspaceArea)
+    $windowsDefaultManifestSrc = downloadWindowsDefaultManifest $workspaceArea
+    buildAndInstall $windowsDefaultManifestSrc
+}
+
+function installEsyBash {
+    param([String] $EsyBashExe, [String] $EsyBashRoot, [String] $dotCygwinFolder)
+
+    setupCygwin -EsyBashRoot $EsyBashRoot -dotCygwinFolder $dotCygwinFolder
+
+    $workspaceAreaName = "_temp"
+    $workspaceArea = createEmptyFolder -Path $workspaceAreaName
+    setupWindowsDefaultManifest -workspaceArea $workspaceArea
+}
+
+function main {
+ 
+    param([String] $EsyBashExe, [String] $EsyBashRoot)
+
+    # This is necessary because on the CI (or during local
+    # development, runnning `npm install` will trigger postinstall
+    # too. We dont want this to fail, esp on CI where it will break
+    # the pipeline unnecessarily. The point of this `npm install`
+    # command was only to setup dependencies needs to work with
+    # esy-bash. A working postinstall at this stage (beginning of
+    # development) isn't necessary.
+
+    $dotCygwinFolder = ".cygwin"
+    if (!(pathExists -Path $dotCygwinFolder)) {
+	echo "No cygwin folder found, nothing to be done.";
+	exit 0;
+    }
+
+    installEsyBash -EsyBashExe $EsyBashExe -EsyBashRoot $EsyBashRoot -dotCygwinFolder $dotCygwinFolder
+}
+
+main -EsyBashExe $EsyBashExe -EsyBashRoot $EsyBashRoot 

@@ -1,21 +1,23 @@
-const path = require("path");
-const cygMirror = "http://cygwin.mirror.constant.com";
-const cygwinSetup = "setup-x86_64.exe";
-const cygwinSetupDownloadURL = `https://cygwin.com/${cygwinSetup}`;
-const installationDirectory = path.join(__dirname, ".cygwin");
-let esyBashExePath = path.join(
-  __dirname,
-  "re",
-  "_build",
-  "default",
-  "bin",
-  "EsyBash.exe"
-);
+const {
+  cygwin: {
+    installationSubDirectory,
+    setupWebsite: cygwinSetupWebsite,
+    setup: cygwinSetup,
+    mirror: cygwinMirror,
+  },
+  paths: { esyBashExe },
+} = require("./config");
+
+const cygwinSetupDownloadURL = `${cygwinSetupWebsite}/${cygwinSetup}`;
+
+// paths that need __dirname
+const esyBashExePath = path.join(__dirname, esyBashExe);
+const installationSubDirectory = path.join(__dirname, installationSubDirectory);
+
+// paths that need __dirname indirectly
 const localPackageDirectory = path.join(
   installationDirectory,
-  "var",
-  "cache",
-  "setup"
+  localPackageSubDirectory
 );
 
 module.exports = {
