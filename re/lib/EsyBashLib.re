@@ -118,12 +118,13 @@ let bashExec = (~environmentFile=?, command) => {
   if (Sys.win32) {
     let bashCommandWithDirectoryPreamble =
       Printf.sprintf(
-        "mount -c /cygdrive -o binary,noacl,posix=0,user > /dev/null; \ncd \"%s\";\n%s;",
+        "mount -c /cygdrive -o binary,noacl,posix=0,user > /dev/null; \ncd \"%s\";\nexport PATH=\"$ORIGINAL_PATH\";\n%s;",
         normalizePath(Sys.getcwd()),
         command,
       );
     let normalizedShellScript =
       normalizeEndlines(bashCommandWithDirectoryPreamble);
+
     let cygwinSymlinkVar = "CYGWIN=winsymlinks:nativestrict";
     let existingVars = Unix.environment();
     let vars =
