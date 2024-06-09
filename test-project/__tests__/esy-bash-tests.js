@@ -44,6 +44,10 @@ const esyBashRun = async (script, envFilePath, cwd) => {
 
   const output = cp.spawnSync(binPath, args, {
     cwd,
+    env: {
+      ...process.env,
+      PATH: "/bin:/usr/bin:/usr/local/bin:" + process.env.PATH,
+    },
   });
 
   return {
@@ -103,13 +107,13 @@ describe(description, () => {
 
       const output = await esyBashRun(
         "echo $SOME_ENVIRONMENT_VARIABLE",
-        environmentFilePath
+        environmentFilePath,
       );
 
       expect(output.stderr.toString()).toBe("");
       expect(output.status).toEqual(0);
       expect(
-        output.stdout.indexOf("test-variable-value")
+        output.stdout.indexOf("test-variable-value"),
       ).toBeGreaterThanOrEqual(0);
     });
 
@@ -174,7 +178,7 @@ describe(description, () => {
       let output = await esyBashRun(
         `tar cvf test.tgz test.txt`,
         null,
-        srcDirectory
+        srcDirectory,
       );
       console.dir(output);
       expect(output.status).toEqual(0);
@@ -187,7 +191,7 @@ describe(description, () => {
       output = await esyBashRun(
         `tar -xf test.tgz -C "${src}"`,
         null,
-        srcDirectory
+        srcDirectory,
       );
       console.dir(output);
       expect(output.status).toEqual(0);
@@ -205,7 +209,7 @@ describe(description, () => {
   describe("git", () => {
     it("can run git w/ https", async () => {
       const output = await esyBashRun(
-        `git ls-remote https://github.com/yarnpkg/example-yarn-package.git`
+        `git ls-remote https://github.com/yarnpkg/example-yarn-package.git`,
       );
       console.dir(output);
       expect(output.status).toEqual(0);
