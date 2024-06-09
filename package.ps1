@@ -9,10 +9,11 @@ function Run {
     Param
     (
         [parameter(mandatory=$true, position=0)][string]$Cmd,
-        [parameter(mandatory=$false, position=1, ValueFromRemainingArguments=$true)]$Args
+        [parameter(mandatory=$false, position=1, ValueFromRemainingArguments=$true)]$ArgsStr
     )
 
-    & $Cmd $Args | timestamp
+    $ArgsList = $ArgsStr -split " "
+    & $Cmd @ArgsList | timestamp
     if (! $?) {
 	exit(-1);
     }
