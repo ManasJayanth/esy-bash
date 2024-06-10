@@ -115,49 +115,65 @@ let bashExec = (~environmentFile=?, command) => {
     ++ "\\.cygwin\\bin\\bash.exe";
   let shellPath = Sys.unix ? "/bin/bash" : cygwinBash;
   log(Printf.sprintf("esy-bash: executing bash command: %s\n", command));
-  let bashCommandWithDirectoryPreamble =
-    Printf.sprintf(
-      "mount -c /cygdrive -o binary,noacl,posix=0,user > /dev/null; \ncd \"%s\";\n%s;",
-      normalizePath(Sys.getcwd()),
-      command,
-    );
-  let normalizedShellScript =
-    normalizeEndlines(bashCommandWithDirectoryPreamble);
-
-  let cygwinSymlinkVar = "CYGWIN=winsymlinks:nativestrict";
-  let existingVars = Unix.environment();
-  let vars =
-    remapPathsInEnvironment(
-      Array.append([|cygwinSymlinkVar|], existingVars),
-    );
-  withTempFile(
-    ~contents=normalizedShellScript,
-    ~f=tempFilePath => {
-      let run_shell =
-        switch (environmentFile) {
-        | Some(x) =>
-          let varsFromFile =
-            remapPathsInEnvironment(
-              Array.of_list(extractEnvironmentVariables(x)),
+  if (Sys.win32) {
+    let bashCommandWithDirectoryPreamble =
+      Printf.sprintf(
+        "mount -c /cygdrive -o binary,noacl,posix=0,user > /dev/null; \ncd \"%s\";\n%s;",
+        normalizePath(Sys.getcwd()),
+        command,
+      );
+    let normalizedShellScript =
+      normalizeEndlines(bashCommandWithDirectoryPreamble);
+    let cygwinSymlinkVar = "CYGWIN=winsymlinks:nativestrict";
+    let existingVars = Unix.environment();
+    let vars =
+      remapPathsInEnvironment(
+        Array.append([|cygwinSymlinkVar|], existingVars),
+      );
+    withTempFile(
+      ~contents=normalizedShellScript,
+      ~f=tempFilePath => {
+        let run_shell =
+          switch (environmentFile) {
+          | Some(x) =>
+            let varsFromFile =
+              remapPathsInEnvironment(
+                Array.of_list(extractEnvironmentVariables(x)),
+              );
+            Unix.create_process_env(
+              shellPath,
+              [|Sys.unix ? "-c" : "-lc", tempFilePath|],
+              Array.append(existingVars, varsFromFile),
             );
-          Unix.create_process_env(
-            shellPath,
-            [|Sys.unix ? "-c" : "-lc", tempFilePath|],
-            Array.append(existingVars, varsFromFile),
-          );
-        | None =>
-          Unix.create_process_env(
-            shellPath,
-            [|Sys.unix ? "-c" : "-lc", tempFilePath|],
-            vars,
-          )
+          | None =>
+            Unix.create_process_env(
+              shellPath,
+              [|Sys.unix ? "-c" : "-lc", tempFilePath|],
+              vars,
+            )
+          };
+        let pid = run_shell(Unix.stdin, Unix.stdout, Unix.stderr);
+        switch (Unix.waitpid([], pid)) {
+        | (_, WEXITED(c)) => c
+        | (_, WSIGNALED(c)) => c
+        | (_, WSTOPPED(c)) => c
         };
-      let pid = run_shell(Unix.stdin, Unix.stdout, Unix.stderr);
-      switch (Unix.waitpid([], pid)) {
-      | (_, WEXITED(c)) => c
-      | (_, WSIGNALED(c)) => c
-      | (_, WSTOPPED(c)) => c
+      },
+    );
+  } else {
+    let env =
+      switch (environmentFile) {
+      | Some(x) => Array.of_list(extractEnvironmentVariables(x))
+      | None => Unix.environment()
       };
-    },
-  );
+
+    let run_shell =
+      Unix.create_process_env(shellPath, [|shellPath, "-c", command|], env);
+    let pid = run_shell(Unix.stdin, Unix.stdout, Unix.stderr);
+    switch (Unix.waitpid([], pid)) {
+    | (_, WEXITED(c)) => c
+    | (_, WSIGNALED(c)) => c
+    | (_, WSTOPPED(c)) => c
+    };
+  };
 };
