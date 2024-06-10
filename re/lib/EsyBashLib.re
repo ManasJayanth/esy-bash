@@ -51,7 +51,7 @@ module Array = {
   };
 };
 
-let remapPathsInEnvironment = envVars => {
+let remapPathsInEnvironment = (~msvc, envVars) => {
   let ( let* ) = Option.bind;
   let f = envVar => {
     let* (k, v) = Result.to_option(splitInTwo(~char='=', envVar));
@@ -61,7 +61,9 @@ let remapPathsInEnvironment = envVars => {
         "PATH",
         String.concat(
           getPathSeparator(),
-          [normalizePath(v), "/usr/bin", "/usr/local/bin"],
+          msvc
+            ? [normalizePath(v), "/bin", "/usr/bin", "/usr/local/bin"]
+            : ["/bin", "/usr/bin", "/usr/local/bin", normalizePath(v)],
         ),
       ))
     | "home" => Some(("HOME", "/usr/esy"))
@@ -107,7 +109,7 @@ let withTempFile = (~contents, ~f) => {
   result;
 };
 
-let bashExec = (~environmentFile=?, command) => {
+let bashExec = (~environmentFile=?, ~msvc, command) => {
   let executablePath = Sys.executable_name;
   let parent = Filename.dirname;
   let cygwinBash =
@@ -118,16 +120,18 @@ let bashExec = (~environmentFile=?, command) => {
   if (Sys.win32) {
     let bashCommandWithDirectoryPreamble =
       Printf.sprintf(
-        "mount -c /cygdrive -o binary,noacl,posix=0,user > /dev/null; \ncd \"%s\";\n%s;",
+        "mount -c /cygdrive -o binary,noacl,posix=0,user > /dev/null; \ncd \"%s\";\nexport PATH=\"$ORIGINAL_PATH\";\n%s;",
         normalizePath(Sys.getcwd()),
         command,
       );
     let normalizedShellScript =
       normalizeEndlines(bashCommandWithDirectoryPreamble);
+
     let cygwinSymlinkVar = "CYGWIN=winsymlinks:nativestrict";
     let existingVars = Unix.environment();
     let vars =
       remapPathsInEnvironment(
+        ~msvc,
         Array.append([|cygwinSymlinkVar|], existingVars),
       );
     withTempFile(
@@ -138,6 +142,7 @@ let bashExec = (~environmentFile=?, command) => {
           | Some(x) =>
             let varsFromFile =
               remapPathsInEnvironment(
+                ~msvc,
                 Array.of_list(extractEnvironmentVariables(x)),
               );
             Unix.create_process_env(
