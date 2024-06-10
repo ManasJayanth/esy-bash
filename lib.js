@@ -23,7 +23,7 @@ async function downloadSetup() {
     log(`Found setup installer at ${cygSetupPath}`);
   } else {
     log(
-      `Downloading setup from: ${cygwinSetupDownloadURL} to: ${downloadFolder}`,
+      `Downloading setup from: ${cygwinSetupDownloadURL} to: ${downloadFolder}`
     );
     await download(cygwinSetupDownloadURL, downloadFolder);
     log(`Download complete!`);
@@ -105,7 +105,7 @@ async function installPackages(localPackageDirectory) {
   log("Copying over defaults...");
   fs.copySync(
     path.join(__dirname, "defaults"),
-    path.join(__dirname, ".cygwin"),
+    path.join(__dirname, ".cygwin")
   );
   log("Defaults copied successfully");
 
@@ -113,7 +113,7 @@ async function installPackages(localPackageDirectory) {
   try {
     fs.appendFileSync(
       path.join(__dirname, ".cygwin", "etc", "nsswitch.conf"),
-      "\ndb_home: /usr/esy\n",
+      "\ndb_home: /usr/esy\n"
     );
   } catch (e) {
     console.error("Something went wrong while updating nsswitch.conf");
@@ -146,49 +146,16 @@ async function installWindowsDefaultManifest(localPackageDirectory) {
     file: tarballPath,
   });
   let extractedPath = tarballPath.replace(".tar.gz", "");
-
-  runEsyBash(`echo $PATH`.split(" "), {
-    cwd: extractedPath,
-    env: {
-      ...process.env,
-      PATH: "/bin:/usr/bin:/usr/local/bin:" + process.env.PATH,
-    },
-  });
   runEsyBash(
     `./configure --host x86_64-w64-mingw32 --prefix=/usr/x86_64-w64-mingw32/sys-root/mingw`.split(
-      " ",
+      " "
     ),
     {
       cwd: extractedPath,
-      env: {
-        ...process.env,
-        PATH: "/bin:/usr/bin:/usr/local/bin:" + process.env.PATH,
-      },
-      // process_begin: CreateProcess(NULL, x86_64-w64-mingw32-windres -F pe-x86-64 default-manifest.rc -o default-manifest.o, ...) failed.
-      // make (e=2): The system cannot find the file specified.
-      // make: *** [Makefile:28: default-manifest.o] Error 2
-    },
+    }
   );
-  runEsyBash(`make`.split(" "), {
-    cwd: extractedPath,
-    env: {
-      ...process.env,
-      PATH: "/bin:/usr/bin:/usr/local/bin:" + process.env.PATH,
-    },
-  });
-  runEsyBash(`make install`.split(" "), {
-    cwd: extractedPath,
-    env: {
-      ...process.env,
-      PATH: "/bin:/usr/bin:/usr/local/bin:" + process.env.PATH,
-    },
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // mkdir -p /usr/x86_64-w64-mingw32/sys-root/mingw/lib						        //
-    // process_begin: CreateProcess(NULL, mkdir -p /usr/x86_64-w64-mingw32/sys-root/mingw/lib, ...) failed. //
-    // make (e=2): The system cannot find the file specified.					        //
-    // make: *** [Makefile:31: install] Error 2							        //
-    //////////////////////////////////////////////////////////////////////////////////////////////////////////
-  });
+  runEsyBash(`make`.split(" "), { cwd: extractedPath });
+  runEsyBash(`make install`.split(" "), { cwd: extractedPath });
 }
 
 module.exports = {
