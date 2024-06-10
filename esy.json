@@ -1,0 +1,10 @@
+{
+  "name": "esy-bash",
+  "version": "0.1.0",
+  "description": "Reason tools for esy-bash developement",
+  "devDependencies": {
+    "ocaml": "4.14.x",
+    "@opam/rtop": "*",
+    "@opam/ocaml-lsp-server": "*"
+  }
+}

@@ -8,14 +8,25 @@ const normalizePath = (str) => {
   return str.split("\\").join("/");
 };
 
-const binPath = path.join(
-  path.dirname(require.resolve(`${ESY_BASH_PACKAGE_NAME}/package.json`)),
-  "re",
-  "_build",
-  "default",
-  "bin",
-  "EsyBash.exe"
-);
+const binPath =
+  process.platform !== "win32"
+    ? path.join(
+        __dirname,
+        "../../",
+        "re",
+        "_build",
+        "default",
+        "bin",
+        "EsyBash.exe",
+      )
+    : path.join(
+        path.dirname(require.resolve(`${ESY_BASH_PACKAGE_NAME}/package.json`)),
+        "re",
+        "_build",
+        "default",
+        "bin",
+        "EsyBash.exe",
+      );
 
 let idx = 0;
 const getTempDirectory = () => {
@@ -27,7 +38,9 @@ const getTempDirectory = () => {
 
 const esyBashRun = async (script, envFilePath, cwd) => {
   cwd = cwd || process.cwd();
-  const args = envFilePath ? ["--env", envFilePath, script] : [script];
+  const args = envFilePath
+    ? ["--env", envFilePath, "--", script]
+    : ["--", script];
 
   const output = cp.spawnSync(binPath, args, {
     cwd,
@@ -41,10 +54,14 @@ const esyBashRun = async (script, envFilePath, cwd) => {
 };
 
 const toCygwinPath = async (originalPath) => {
-  const normalizedPath = normalizePath(originalPath);
-  const ret = await esyBashRun(`cygpath "${normalizedPath}"`);
-  let val = ret.stdout.toString("utf8");
-  return val ? val.trim() : null;
+  if (process.platform == "win32") {
+    const normalizedPath = normalizePath(originalPath);
+    const ret = await esyBashRun(`cygpath "${normalizedPath}"`);
+    let val = ret.stdout.toString("utf8");
+    return val ? val.trim() : null;
+  } else {
+    return originalPath;
+  }
 };
 
 const description = `Testing with: ${binPath}`;
@@ -112,6 +129,7 @@ describe(description, () => {
   describe("arguments", () => {
     it("respects arguments passed in", async () => {
       const result = cp.spawnSync(binPath, [
+        "--",
         "sh",
         "-c",
         "(echo Hello || true)",
