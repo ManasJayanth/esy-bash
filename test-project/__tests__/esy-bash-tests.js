@@ -112,6 +112,7 @@ describe(description, () => {
   describe("arguments", () => {
     it("respects arguments passed in", async () => {
       const result = cp.spawnSync(binPath, [
+        "--",
         "sh",
         "-c",
         "(echo Hello || true)",

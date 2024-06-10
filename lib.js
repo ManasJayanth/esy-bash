@@ -66,6 +66,7 @@ async function runSetup(args) {
 }
 
 function runEsyBash(args, options) {
+  args.unshift("--");
   return runCommand(esyBashExePath, args, options);
 }
 
