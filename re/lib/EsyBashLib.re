@@ -61,7 +61,7 @@ let remapPathsInEnvironment = envVars => {
         "PATH",
         String.concat(
           getPathSeparator(),
-          [normalizePath(v), "/usr/bin", "/usr/local/bin"],
+          [normalizePath(v), "/bin", "/usr/bin", "/usr/local/bin"],
         ),
       ))
     | "home" => Some(("HOME", "/usr/esy"))
