@@ -1,6 +1,6 @@
 const os = require("os");
 const path = require("path");
-const download = require("download");
+const download = require("./download");
 const cp = require("child_process");
 const fs = require("fs-extra");
 const packagesToInstall = require("./packages-to-install");
