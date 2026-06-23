@@ -13,17 +13,18 @@ let sysArgvLen = Array.length(Sys.argv);
 /* Argument parsing could be improved I guess, simply copied from current logic */
 let exitCode = {
   ArgParser.parse();
+  let msvc = ArgParser.msvc^;
   switch (ArgParser.environmentFile^) {
   | Some(environmentFile) =>
     ArgParser.commandAndArgs^
     |> Array.of_list
     |> serialiseAsOneCommand
-    |> EsyBashLib.bashExec(~environmentFile)
+    |> EsyBashLib.bashExec(~environmentFile, ~msvc)
   | None =>
     ArgParser.commandAndArgs^
     |> Array.of_list
     |> serialiseAsOneCommand
-    |> EsyBashLib.bashExec
+    |> EsyBashLib.bashExec(~msvc)
   };
 };
 

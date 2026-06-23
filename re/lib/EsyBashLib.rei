@@ -1,1 +1,1 @@
-let bashExec: (~environmentFile: string=?, string) => int;
+let bashExec: (~environmentFile: string=?, ~msvc:bool, string) => int;
